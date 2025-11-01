@@ -1,0 +1,12 @@
+---
+- name: Deploy ZORBOX (MVP) via Docker Compose
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Ensure compose is present (docs-only stub)
+      debug:
+        msg: "Run docker compose up -d in infra directory"
+    - name: Show services
+      debug:
+        msg: "Services: orchestrator:8080, reporter:8090, ti:8070, prometheus:9090, grafana:3000"
+

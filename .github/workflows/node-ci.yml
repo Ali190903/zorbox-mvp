@@ -1,0 +1,22 @@
+name: Node CI (frontend-ui)
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  frontend-ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci || npm i
+      - run: npm test --silent
+      - run: npm run build --silent
+

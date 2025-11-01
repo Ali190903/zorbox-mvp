@@ -1,0 +1,20 @@
+[project]
+name = "zorbox-ti-enrichment"
+version = "0.1.0"
+description = "ZORBOX TI Enrichment (MVP)"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+  "pydantic>=2.7.0",
+  "prometheus-client>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

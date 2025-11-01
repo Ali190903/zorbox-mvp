@@ -1,0 +1,28 @@
+groups:
+  - name: zorbox-alerts
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} is down"
+      - alert: OrchestratorHighQueue
+        expr: orchestrator_queue_length > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High job queue length"
+          description: "orchestrator_queue_length={{ $value }}"
+      # Disk usage alert requires node_exporter; placeholder rule
+      - alert: DiskUsageHigh
+        expr: node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space"
+          description: ">90% disk used"

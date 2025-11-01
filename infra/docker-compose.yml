@@ -1,0 +1,45 @@
+version: "3.9"
+services:
+  orchestrator:
+    build: ../orchestrator
+    environment:
+      - REPORTER_BASE=http://reporter:8090
+    ports:
+      - "8080:8080"
+  reporter:
+    build: ../reporter-service
+    ports:
+      - "8090:8090"
+  ti:
+    build: ../ti-enrichment
+    environment:
+      - VT_API_KEY
+    ports:
+      - "8070:8070"
+  static_analyzer:
+    build: ../static-analyzer
+    ports:
+      - "8060:8060"
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+    command: [
+      "--config.file=/etc/prometheus/prometheus.yml",
+      "--web.enable-lifecycle"
+    ]
+    ports:
+      - "9090:9090"
+    depends_on:
+      - orchestrator
+      - reporter
+      - ti
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
