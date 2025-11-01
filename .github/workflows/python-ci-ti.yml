@@ -16,10 +16,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Python version
+        run: python -V
       - name: Install dependencies
         run: |
           python -m pip install -U pip
-          python -m pip install fastapi uvicorn pydantic prometheus-client
+          python -m pip install --prefer-binary -i https://pypi.org/simple \
+            fastapi==0.115.0 \
+            uvicorn==0.30.6 \
+            pydantic==2.8.2 \
+            prometheus-client==0.20.0
       - name: Sanity import check
         run: |
           python -c "import importlib,sys; mods=['fastapi','uvicorn','pydantic','prometheus_client']; [importlib.import_module(m) for m in mods]; print('OK')"
