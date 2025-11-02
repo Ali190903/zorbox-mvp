@@ -51,6 +51,18 @@ job_latency = Histogram(
 jobs_submitted = Counter("orchestrator_jobs_submitted_total", "Submitted jobs", registry=registry)
 frontend_errors = Counter("frontend_errors_total", "Frontend errors received", registry=registry)
 frontend_rum_events = Counter("frontend_rum_events_total", "Frontend RUM events received", registry=registry)
+fetcher_download_duration = Histogram(
+    "fetcher_download_duration_seconds",
+    "URL fetch duration seconds",
+    labelnames=("method",),
+    registry=registry,
+)
+fetcher_download_failures = Counter(
+    "fetcher_download_failures_total",
+    "Total URL fetch failures",
+    labelnames=("stage",),
+    registry=registry,
+)
 
 logger = logging.getLogger("zorbox.orchestrator")
 logging.basicConfig(level=logging.INFO)
@@ -520,14 +532,20 @@ async def analyze(
                 return JSONResponse(status_code=400, content={"detail": "URL host not allowed"})
             with httpx.Client(timeout=30.0, follow_redirects=True) as client:
                 try:
+                    _hstart = time.time()
                     hr = client.head(url)
+                    fetcher_download_duration.labels(method="head").observe(time.time() - _hstart)
                     if hr.status_code < 400:
                         cl = int(hr.headers.get('Content-Length', '0'))
                         if cl > MAX_UPLOAD_BYTES:
                             return JSONResponse(status_code=413, content={"detail": "remote file too large (>10MB)"})
                 except Exception:
+                    # Count HEAD failures but proceed to GET attempt
+                    fetcher_download_failures.labels(stage="head").inc()
                     pass
+                _gstart = time.time()
                 r = _download_with_retries(url, client, retries=3)
+                fetcher_download_duration.labels(method="get").observe(time.time() - _gstart)
                 r.raise_for_status()
                 data = r.content
                 if len(data) <= 0 or len(data) > MAX_UPLOAD_BYTES:
@@ -621,6 +639,10 @@ async def analyze(
                     pass
                 return AnalyzeResponse(job_id=job.id, accepted=True)
         except Exception as e:
+            try:
+                fetcher_download_failures.labels(stage="get").inc()
+            except Exception:
+                pass
             return JSONResponse(status_code=400, content={"detail": f"download failed: {e}"})
 
 
@@ -806,7 +828,5 @@ async def frontend_rum_ingest(payload: dict):
     frontend_rum_events.inc()
     logger.info({"event": "frontend_rum", "payload": payload})
     return JSONResponse(status_code=202, content={"accepted": True})
-
-
 
 
