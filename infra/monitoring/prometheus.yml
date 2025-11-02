@@ -1,23 +1,52 @@
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'zorbox-mvp'
+    environment: 'hackathon'
 
+# Load rules once and periodically evaluate them
 rule_files:
-  - /etc/prometheus/alerts.yml
+  - '/etc/prometheus/alerts.yml'
 
+# Scrape configurations
 scrape_configs:
+  # Orchestrator metrics
   - job_name: 'orchestrator'
     static_configs:
       - targets: ['orchestrator:8080']
-    metrics_path: /metrics
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Reporter service metrics
   - job_name: 'reporter'
     static_configs:
       - targets: ['reporter:8090']
-    metrics_path: /metrics
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # TI Enrichment metrics
   - job_name: 'ti-enrichment'
     static_configs:
       - targets: ['ti:8070']
-    metrics_path: /metrics
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Static Analyzer metrics
+  - job_name: 'static-analyzer'
+    static_configs:
+      - targets: ['static_analyzer:8060']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Sandbox Native metrics
   - job_name: 'sandbox-native'
     static_configs:
       - targets: ['sandbox:8050']
-    metrics_path: /metrics
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

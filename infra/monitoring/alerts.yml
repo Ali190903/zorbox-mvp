@@ -1,28 +1,102 @@
 groups:
-  - name: zorbox-alerts
+  - name: zorbox_alerts
+    interval: 30s
     rules:
+      # Service Down Alert
       - alert: ServiceDown
         expr: up == 0
         for: 1m
         labels:
           severity: critical
+          component: infrastructure
         annotations:
-          summary: "Service down"
-          description: "{{ $labels.job }} on {{ $labels.instance }} is down"
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute. Instance: {{ $labels.instance }}"
+
+      # Orchestrator High Queue Alert
       - alert: OrchestratorHighQueue
-        expr: orchestrator_queue_length > 20
+        expr: orchestrator_queue_length > 50
+        for: 2m
+        labels:
+          severity: warning
+          component: orchestrator
+        annotations:
+          summary: "Orchestrator queue is high"
+          description: "Orchestrator has {{ $value }} jobs in queue for more than 2 minutes"
+
+      # Orchestrator Job Failures
+      - alert: OrchestratorHighFailureRate
+        expr: rate(orchestrator_jobs_in_state{state="failed"}[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          component: orchestrator
+        annotations:
+          summary: "High job failure rate in orchestrator"
+          description: "Orchestrator job failure rate is {{ $value }} per second"
+
+      # High Response Time (job latency)
+      - alert: HighJobLatency
+        expr: histogram_quantile(0.95, rate(orchestrator_job_latency_seconds_bucket[5m])) > 300
         for: 5m
         labels:
           severity: warning
+          component: orchestrator
         annotations:
-          summary: "High job queue length"
-          description: "orchestrator_queue_length={{ $value }}"
-      # Disk usage alert requires node_exporter; placeholder rule
-      - alert: DiskUsageHigh
-        expr: node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.1
+          summary: "High job processing latency"
+          description: "95th percentile job latency is {{ $value }}s (threshold: 300s)"
+
+      # Frontend Errors Spike
+      - alert: FrontendErrorsSpike
+        expr: rate(frontend_errors_total[5m]) > 1
+        for: 2m
+        labels:
+          severity: warning
+          component: frontend
+        annotations:
+          summary: "Frontend errors are spiking"
+          description: "Frontend error rate is {{ $value }} errors per second"
+
+      # Sandbox Errors
+      - alert: SandboxHighErrorRate
+        expr: rate(sandbox_errors_total[5m]) > 0.5
+        for: 3m
+        labels:
+          severity: warning
+          component: sandbox
+        annotations:
+          summary: "High sandbox error rate"
+          description: "Sandbox error rate is {{ $value }} per second for adapter {{ $labels.adapter }}"
+
+      # Reporter PDF Generation Slow
+      - alert: SlowPDFGeneration
+        expr: histogram_quantile(0.95, rate(reporter_pdf_generation_time_seconds_bucket[5m])) > 30
         for: 5m
         labels:
           severity: warning
+          component: reporter
         annotations:
-          summary: "Low disk space"
-          description: ">90% disk used"
+          summary: "PDF generation is slow"
+          description: "95th percentile PDF generation time is {{ $value }}s (threshold: 30s)"
+
+      # TI Service High Unknown Rate
+      - alert: TIHighUnknownRate
+        expr: rate(ti_reputation_unknown_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: info
+          component: ti-enrichment
+        annotations:
+          summary: "TI service returning many unknown reputations"
+          description: "TI unknown reputation rate is {{ $value }} per second. Consider checking TI feeds."
+
+      # Disk Usage High (placeholder - requires node_exporter)
+      # - alert: DiskUsageHigh
+      #   expr: (node_filesystem_avail_bytes{mountpoint="/app/uploads"} / node_filesystem_size_bytes{mountpoint="/app/uploads"}) < 0.1
+      #   for: 5m
+      #   labels:
+      #     severity: warning
+      #     component: storage
+      #   annotations:
+      #     summary: "Disk usage is high on uploads directory"
+      #     description: "Only {{ $value | humanizePercentage }} disk space available"

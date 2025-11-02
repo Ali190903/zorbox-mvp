@@ -582,7 +582,6 @@ async def analyze(
                         _update_gauges()
                         return AnalyzeResponse(job_id=job.id, accepted=False)
                     # Optional archive handling (URL case)
-                    from .archive import detect_archive
                     arch = detect_archive(fn, data)
                     job.archive_type = arch[0] if arch else None
                     if arch:
@@ -738,5 +737,76 @@ def audit(limit: int = 100):
     return {"items": items}
 
 
- 
-                        
+@app.post("/feedback")
+async def feedback(payload: dict):
+    """Accept user feedback (false-positive marking, comments)."""
+    job_id = payload.get("job_id")
+    kind = payload.get("kind", "general")  # e.g., 'fp', 'tp', 'general'
+    comment = payload.get("comment", "")
+    if not job_id:
+        return JSONResponse(status_code=400, content={"detail": "job_id is required"})
+    job = store.get(job_id)
+    if not job:
+        return JSONResponse(status_code=404, content={"detail": "job not found"})
+    try:
+        _audit("feedback", job_id, {"kind": kind, "comment": comment})
+        logger.info({"event": "feedback", "job_id": job_id, "kind": kind, "comment": comment})
+    except Exception:
+        pass
+    return JSONResponse(status_code=202, content={"accepted": True, "job_id": job_id})
+
+
+@app.post("/reanalysis")
+async def reanalysis(payload: dict, background: BackgroundTasks):
+    """Request re-analysis of a file (creates a new job with same file)."""
+    job_id = payload.get("job_id")
+    if not job_id:
+        return JSONResponse(status_code=400, content={"detail": "job_id is required"})
+    original_job = store.get(job_id)
+    if not original_job:
+        return JSONResponse(status_code=404, content={"detail": "job not found"})
+    # Create a new job with the same file metadata
+    try:
+        new_job = store.create(
+            file_name=original_job.file_name,
+            file_size=original_job.file_size,
+            file_sha256=original_job.file_sha256
+        )
+        new_job.file_md5 = original_job.file_md5
+        new_job.mime_detected = original_job.mime_detected
+        new_job.adapters = original_job.adapters
+        # Copy the file from original job to new job directory
+        try:
+            original_path = UPLOAD_DIR / original_job.id / (original_job.file_name or "sample.bin")
+            if original_path.exists():
+                new_base = UPLOAD_DIR / new_job.id
+                new_base.mkdir(parents=True, exist_ok=True)
+                import shutil
+                shutil.copy2(str(original_path), str(new_base / (original_job.file_name or "sample.bin")))
+                write_job_meta(new_base, new_job.to_summary().model_dump())
+        except Exception as e:
+            logger.warning({"event": "reanalysis_copy_error", "error": str(e)})
+        jobs_submitted.inc()
+        _update_gauges()
+        start_ts = time.time()
+        background.add_task(_simulate_pipeline, new_job.id, start_ts)
+        try:
+            _audit("reanalysis_requested", new_job.id, {"original_job_id": job_id})
+        except Exception:
+            pass
+        return JSONResponse(status_code=202, content={"accepted": True, "job_id": new_job.id})
+    except Exception as e:
+        logger.exception({"event": "reanalysis_error", "job_id": job_id, "error": str(e)})
+        return JSONResponse(status_code=500, content={"detail": "reanalysis failed"})
+
+
+@app.post("/frontend-rum")
+async def frontend_rum_ingest(payload: dict):
+    """Accept Real User Monitoring (RUM) data from frontend."""
+    frontend_rum_events.inc()
+    logger.info({"event": "frontend_rum", "payload": payload})
+    return JSONResponse(status_code=202, content={"accepted": True})
+
+
+
+

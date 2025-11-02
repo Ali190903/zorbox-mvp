@@ -7,10 +7,19 @@ services:
       - REPORTER_BASE=http://reporter:8090
       - TI_BASE=http://ti:8070
       - SANDBOX_BASE=http://sandbox:8050
+      - CUCKOO_BASE=http://cuckoo:8090
+      - CAPE_BASE=http://cape:8000
     ports:
       - "8080:8080"
     volumes:
       - ../orchestrator/app/uploads:/app/uploads
+    depends_on:
+      - static_analyzer
+      - reporter
+      - ti
+      - sandbox
+      - cuckoo
+      - cape
   reporter:
     build: ../reporter-service
     ports:
@@ -31,6 +40,18 @@ services:
     build: ../sandbox-native
     ports:
       - "8050:8050"
+  cuckoo:
+    build: ../cuckoo-api
+    ports:
+      - "8091:8090"
+    environment:
+      - SERVICE_NAME=cuckoo-api-mvp
+  cape:
+    build: ../cape-api
+    ports:
+      - "8001:8000"
+    environment:
+      - SERVICE_NAME=cape-api-mvp
   prometheus:
     image: prom/prometheus:latest
     volumes:
